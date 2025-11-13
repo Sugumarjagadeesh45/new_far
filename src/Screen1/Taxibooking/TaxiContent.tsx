@@ -20001,6 +20001,7 @@ const updateRouteWithAnimation = useCallback(async (driverLoc: LocationType, dro
     setShowRouteDetailsModal(true);
   };
 
+ 
   const handleConfirmBookingFromModal = async () => {
   try {
     console.log('🚨 ===== REAL RIDE BOOKING START =====');
@@ -20029,6 +20030,7 @@ const updateRouteWithAnimation = useCallback(async (driverLoc: LocationType, dro
       return;
     }
 
+    // ✅ SIMPLIFIED FCM STRUCTURE - Backend expects specific fields
     const rideData = {
       userId,
       customerId: customerId || userId,
@@ -20051,22 +20053,15 @@ const updateRouteWithAnimation = useCallback(async (driverLoc: LocationType, dro
       travelTime: travelTime.replace(' mins', ''),
       wantReturn,
       token,
-      // ✅ CRITICAL FCM FIELDS - Enhanced structure
+      
+      // ✅ CRITICAL: Simple FCM flag that backend understands
+      _fcmRequired: true,
       _source: 'user_app',
       _timestamp: Date.now(),
-      _fcmRequired: true,
-      _vehicleType: selectedRideType,
-      _otpSource: 'customerId_last4',
-      // ✅ Additional FCM payload for better delivery
-      notification: {
-        title: `New ${selectedRideType.toUpperCase()} Ride Request`,
-        body: `From ${pickup} to ${dropoff}`,
-        priority: 'high',
-        sound: 'default'
-      }
     };
 
-    console.log('📦 Sending ride data to server with FCM:', rideData);
+    console.log('📦 Sending SIMPLIFIED ride data with FCM flag:', rideData);
+    console.log('🔐 OTP:', otp);
     
     // Set booking state
     setIsBooking(true);
@@ -20084,9 +20079,12 @@ const updateRouteWithAnimation = useCallback(async (driverLoc: LocationType, dro
           console.log('🎯 FCM successfully sent to drivers');
         } else {
           console.log('⚠️ FCM notification failed - Ride will still be searched');
-          // Trigger manual FCM retry
+          console.log('🔍 Reason:', response.fcmMessage || 'Unknown error');
+          
+          // ✅ IMMEDIATE FCM RETRY
           setTimeout(() => {
-            triggerManualFCM();
+            console.log('🔄 Auto-retrying FCM notification...');
+            triggerSimpleFCM();
           }, 2000);
         }
         
@@ -20118,8 +20116,41 @@ const updateRouteWithAnimation = useCallback(async (driverLoc: LocationType, dro
     setIsBooking(false);
   }
 };
-
   
+
+
+const triggerSimpleFCM = async () => {
+  try {
+    if (!currentRideId) {
+      console.log('❌ No current ride ID for FCM');
+      return;
+    }
+    
+    console.log('🔄 SIMPLE FCM trigger for ride:', currentRideId);
+    
+    // Simple FCM payload that backend understands
+    const fcmPayload = {
+      rideId: currentRideId,
+      action: 'retry_fcm',
+      timestamp: Date.now()
+    };
+    
+    socket.emit('manualFCMTrigger', fcmPayload, (response) => {
+      console.log('📨 Simple FCM response:', response);
+      if (response && response.success) {
+        console.log('✅ Simple FCM triggered successfully');
+      } else {
+        console.log('❌ Simple FCM failed:', response?.message);
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Simple FCM trigger error:', error);
+  }
+};
+
+
+
 // Add this useEffect to debug FCM issues
 useEffect(() => {
   if (!isMountedRef.current) return;
